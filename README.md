@@ -1,102 +1,90 @@
-# Go + Redis + PostgreSQL
+# Go-Redis-PostgreSQL
 
-Go ile Redis ve PostgreSQL'in birlikte nasıl kullanıldığını gösteren pratik bir proje.
+[![Go Version](https://img.shields.io/github/go-mod/go-version/cihanisildar/go-redis)](https://go.dev/)
+[![Docker](https://img.shields.io/badge/docker-%232496ED.svg?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=flat&logo=redis&logoColor=white)](https://redis.io/)
+[![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-## Ne Öğrenilir?
+A high-performance task management API built with Go, leveraging Redis for advanced caching and rate limiting, and PostgreSQL for persistent storage. This project demonstrates industry-standard patterns like Clean Architecture and Distributed Locking.
 
-| Konu | Araç | Nerede? |
-|------|------|---------|
-| Kalıcı depolama | PostgreSQL + sqlc | `internal/repository` |
-| Hash ile önbellekleme | `HSET / HGETALL` | `internal/repository` |
-| Atomik rate limiting | Lua script + `INCR` | `internal/middleware` |
-| Race condition koruması | `SET NX PX` | `internal/lock` |
-| Arka plan iş kuyruğu | `LPUSH / BRPOP` | `internal/queue` |
+## Key Features
 
-## Mimari
+| Implementation | Technology | Component |
+|:---|:---|:---|
+| **Persistent Storage** | PostgreSQL + sqlc | `internal/repository` |
+| **Efficient Caching** | Redis Hash (`HSET/HGETALL`) | `internal/repository` |
+| **Atomic Rate Limiting** | Redis Lua Scripting | `internal/middleware` |
+| **Distributed Locking** | Redis `SET NX PX` Pattern | `internal/lock` |
+| **Asynchronous Processing** | Background Worker (LPUSH/BRPOP) | `internal/queue` |
 
-Clean Architecture — bağımlılık her zaman dıştan içe (Domain'e) doğrudur.
+## System Architecture
 
-```text
-internal/
-├── domain/        # Entity'ler ve interface'ler
-├── repository/    # PostgreSQL + Redis veri erişimi
-├── usecase/       # İş kuralları
-├── delivery/http/ # HTTP handler'lar
-├── middleware/    # Rate limiter
-├── lock/          # Distributed lock
-└── queue/         # Job queue + worker
+The project follows **Clean Architecture** principles to ensure maintainability, scalability, and testability.
+
+```mermaid
+graph TD
+    A[HTTP Delivery] --> B[Usecase Layer]
+    B --> C[Domain Entities]
+    B --> D[Repository]
+    D --> E[(PostgreSQL)]
+    D --> F[(Redis)]
+    B --> G[Background Queue]
 ```
 
-## Başlarken
+### Directory Structure
 
-**Gereksinim:** Docker ve Docker Compose
+- `internal/domain`: Core entities and repository interfaces.
+- `internal/usecase`: Business logic and application flow controls.
+- `internal/repository`: Optimized data access logic for SQL and NoSQL.
+- `internal/delivery`: RESTful API endpoints and HTTP orchestration.
+- `internal/middleware`: Distributed rate limiting and security layers.
+- `internal/lock`: Resource synchronization using distributed mutexes.
 
-```bash
-git clone https://github.com/cihanisildar/go-redis.git
-cd go-redis
+## Getting Started
 
-cp .env.example .env
-docker compose up --build
-```
+### Environment Setup
 
-Uygulama `http://localhost:8010` adresinde çalışır.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/cihanisildar/go-redis.git
+   cd go-redis
+   ```
 
-### Docker olmadan
+2. Initialize environment variables:
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-export DATABASE_URL=postgres://postgres:password@localhost:5432/tasks?sslmode=disable
-export REDIS_ADDR=localhost:6379
+3. Deploy using Docker Compose:
+   ```bash
+   docker compose up --build -d
+   ```
 
-go run ./cmd/api
-```
+The API service will be exposed at `http://localhost:8010`.
 
-## API
+## API Reference
 
-| Method   | URL                  | Açıklama               |
-|----------|----------------------|------------------------|
-| `POST`   | `/tasks`             | Task oluştur           |
-| `GET`    | `/tasks`             | Tüm task'ları listele  |
-| `GET`    | `/tasks/{id}`        | Tek task getir         |
-| `PUT`    | `/tasks/{id}/done`   | Tamamlandı işaretle    |
-| `DELETE` | `/tasks/{id}`        | Task sil               |
-| `GET`    | `/queue/stats`       | Kuyruk istatistikleri  |
+### Task Management
 
-```bash
-# Task oluştur
-curl -X POST http://localhost:8010/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Redis öğren"}'
+| Method | Endpoint | Description |
+|:---:|:---|:---|
+| `POST` | `/tasks` | Create a new task entity |
+| `GET` | `/tasks` | Retrieve all tasks (cached) |
+| `GET` | `/tasks/{id}` | Fetch task details by ID |
+| `PUT` | `/tasks/{id}/done` | Update status to completed |
+| `DELETE` | `/tasks/{id}` | Permanently remove a task |
 
-# Listele
-curl http://localhost:8010/tasks
+### System Status
 
-# Tamamla
-curl -X PUT http://localhost:8010/tasks/1/done
+| Method | Endpoint | Description |
+|:---:|:---|:---|
+| `GET` | `/queue/stats` | Real-time background worker metrics |
 
-# Sil
-curl -X DELETE http://localhost:8010/tasks/1
-```
+## Tech Stack & Dependencies
 
-## Redis'i Doğrudan İnceleme
-
-```bash
-docker compose exec redis redis-cli
-
-KEYS *
-HGETALL task:1
-SMEMBERS tasks:all
-KEYS rl:*
-GET lock:task:1
-LLEN queue:tasks
-```
-
-## Teknolojiler
-
-| Araç | Versiyon |
-|------|----------|
-| Go | 1.21 |
-| PostgreSQL | 16 |
-| Redis | 7 |
-| [pgx](https://github.com/jackc/pgx) | v5 |
-| [go-redis](https://github.com/redis/go-redis) | v9 |
-| [sqlc](https://sqlc.dev/) | — |
+- **Runtime:** Go 1.21+
+- **Primary Database:** PostgreSQL 16
+- **Object Cache & Messaging:** Redis 7
+- **Database Driver:** [pgx/v5](https://github.com/jackc/pgx)
+- **Code Generation:** [sqlc](https://sqlc.dev/) for type-safe SQL operations.
+- **Redis Client:** [go-redis/v9](https://github.com/redis/go-redis)
